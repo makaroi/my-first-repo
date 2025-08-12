@@ -1,8 +1,9 @@
-name: タスク（Step2）
-description: LTP を追加した検証版
+name: タスク
+description: Task Management 2025 用
 title: "[Task] "
-labels: []
+labels: []       # ← 最初は空が安定（後で task ラベルを作ってから指定も可）
 assignees: []
+
 body:
   - type: input
     id: project
@@ -48,3 +49,19 @@ body:
         完了条件:
     validations:
       required: true
+
+  - type: textarea
+    id: ref
+    attributes:
+      label: Ref（参考リンク）
+      placeholder: |
+        - https://example.com
+        - 関連Issue: #123
+
+  - type: textarea
+    id: todo
+    attributes:
+      label: Todo（チェックリスト）
+      placeholder: |
+        - [ ] 手順1
+        - [ ] 手順2
