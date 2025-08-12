@@ -1,18 +1,43 @@
-name: Hello on new issue
+name: Issue housekeeping (Task)
 on:
   issues:
     types: [opened]
+
 permissions:
   issues: write
+  contents: write
+  metadata: read
+
 jobs:
-  say-hello:
+  tidy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - name: Tidy title, label, assignee
+        uses: actions/github-script@v7
         with:
           script: |
             const {owner, repo} = context.repo;
-            await github.rest.issues.createComment({
-              owner, repo, issue_number: context.issue.number,
-              body: "Hello! 👋 ワークフローは動いています。"
-            });
+            const issue_number = context.issue.number;
+            const issue = context.payload.issue;
+
+            // 1) タイトル先頭に [Task] を付与（重複回避）
+            const prefix = "[Task] ";
+            let title = issue.title.replace(/^\s*\[Task\]\s*/i, "");
+            if (!issue.title.startsWith(prefix)) {
+              await github.rest.issues.update({ owner, repo, issue_number, title: prefix + title });
+            }
+
+            // 2) ラベル 'task' を確実に付与（無ければ作成）
+            const label = "task";
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: label });
+            } catch {
+              await github.rest.issues.createLabel({ owner, repo, name: label, color: "ededed", description: "Task item" });
+            }
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [label] });
+
+            // 3) 作成者を自動アサイン
+            const author = issue.user?.login;
+            if (author) {
+              await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: [author] });
+            }
