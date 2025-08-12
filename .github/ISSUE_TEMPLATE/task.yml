@@ -1,7 +1,7 @@
 name: タスク
-description: Task Management 2025 用
+description: Task Management 2025 用タスク登録フォーム
 title: "[Task] "
-labels: []       # ← 最初は空が安定（後で task ラベルを作ってから指定も可）
+labels: []   # ラベル自動付与は後のActionsで行うため空でOK
 assignees: []
 
 body:
