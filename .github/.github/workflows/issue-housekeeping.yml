@@ -1,0 +1,55 @@
+name: Issue housekeeping (Task)
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  metadata: read
+  contents: write
+
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add label, assign, normalize title
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const issue_number = context.issue.number;
+            const issue = context.payload.issue;
+
+            // 1) タイトルに [Task] を付ける（無ければ先頭に付与）
+            const wantPrefix = "[Task] ";
+            let newTitle = issue.title;
+            if (!issue.title.startsWith(wantPrefix)) {
+              newTitle = wantPrefix + issue.title.replace(/^\s*\[Task\]\s*/i, "");
+              await github.rest.issues.update({ owner, repo, issue_number, title: newTitle });
+            }
+
+            // 2) ラベル task を付与（無ければ作成してから付与）
+            const labelName = "task";
+            async function ensureLabel(name) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (e) {
+                // 無ければ作成（薄いグレー）
+                await github.rest.issues.createLabel({ owner, repo, name, color: "ededed", description: "Task item" });
+              }
+            }
+            await ensureLabel(labelName);
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [labelName] });
+
+            // 3) 作成者を自動アサイン（すでにアサイン済みなら無害）
+            const author = issue.user?.login;
+            if (author) {
+              await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: [author] });
+            }
+
+            // 完了コメント（任意）
+            await github.rest.issues.createComment({
+              owner, repo, issue_number,
+              body: "🧹 自動整形：タイトル・ラベル・担当者を設定しました。"
+            });
