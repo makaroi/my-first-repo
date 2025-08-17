@@ -1,0 +1,44 @@
+name: Keep single status label
+
+on:
+  issues:
+    types: [labeled]   # ステータス系ラベルが付いた瞬間に発火
+
+permissions:
+  issues: write
+
+jobs:
+  keep-one:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.issue.number;
+            const added = context.payload.label?.name;
+
+            // ★あなたの運用に合わせて調整可
+            const STATUS = ['1. inbox', '2. todo', '3. doing', '4. done'];
+
+            // ステータス系以外のラベルなら何もしない
+            if (!STATUS.includes(added)) return;
+
+            // すでに付いているラベルから、今回の以外のステータス系を外す
+            const existing = (context.payload.issue.labels || []).map(l => l.name);
+            for (const name of existing) {
+              if (STATUS.includes(name) && name !== added) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+                } catch (e) {
+                  // 既に外れていた等は無視
+                }
+              }
+            }
+
+            // 念のため、今回のラベルが未付与なら付ける
+            if (!existing.includes(added)) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [added] });
+            }
+
+            core.info(`Kept only "${added}" on #${issue_number}`);
