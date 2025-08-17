@@ -1,0 +1,26 @@
+name: Debug Projects v2 → Zapier
+
+on:
+  projects_v2_item:
+    types: [created, edited, moved]
+
+permissions:
+  contents: read
+  projects: read
+
+jobs:
+  relay_raw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST raw payload to Zapier
+        env:
+          ZAPIER_HOOK_URL: ${{ secrets.ZAPIER_HOOK_URL }}
+        run: |
+          set -e
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST -H "Content-Type: application/json" \
+            --data-binary @"$GITHUB_EVENT_PATH" \
+            "$ZAPIER_HOOK_URL")
+          echo "HTTP $code"
+          echo "Zapier response:"
+          cat /tmp/resp.txt
