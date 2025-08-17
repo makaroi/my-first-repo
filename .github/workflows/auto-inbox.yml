@@ -24,7 +24,7 @@ jobs:
             const STATUS_LABELS = ['1. inbox', '2. todo', '3. doing', '4. done']; // 使うものだけ残してOK
 
             // 1) ラベルが存在しなければ作成（色=白、説明=日本語）
-            async function ensureLabel(name, color='ffffff', description='') {
+            async function ensureLabel(name, color='f8fcfc', description='') {
               try {
                 await github.rest.issues.getLabel({ owner, repo, name });
               } catch (e) {
