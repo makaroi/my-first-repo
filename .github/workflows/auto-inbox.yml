@@ -1,0 +1,22 @@
+name: Auto add Inbox label
+
+on:
+  issues:
+    types: [opened]  # 新しい Issue が作成されたとき
+
+permissions:
+  issues: write
+
+jobs:
+  add-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              labels: ['Inbox']
+            });
