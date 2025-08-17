@@ -1,0 +1,91 @@
+name: Relay Project Status to Zapier
+
+on:
+  # Projects v2 のアイテムが作成/編集/移動された時に反応
+  projects_v2_item:
+    types: [created, edited, moved]
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Status & send to Zapier
+        uses: actions/github-script@v7
+        env:
+          ZAPIER_HOOK_URL: ${{ secrets.ZAPIER_HOOK_URL }}
+        with:
+          script: |
+            const itemNodeId = context.payload?.projects_v2_item?.node_id;
+            if (!itemNodeId) {
+              core.setFailed('No projects_v2_item.node_id in payload');
+              return;
+            }
+
+            // GraphQL: プロジェクトアイテムの Status と、紐付く Issue/PR のタイトル・URL を取得
+            const query = `
+              query ($itemId: ID!) {
+                node(id: $itemId) {
+                  ... on ProjectV2Item {
+                    id
+                    project { title url }
+                    content {
+                      __typename
+                      ... on Issue { title url }
+                      ... on PullRequest { title url }
+                    }
+                    fieldValues(first: 50) {
+                      nodes {
+                        __typename
+                        ... on ProjectV2ItemFieldSingleSelectValue {
+                          name
+                          field {
+                            ... on ProjectV2SingleSelectField { name }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+            const { node } = await github.graphql(query, { itemId: itemNodeId });
+
+            if (!node) {
+              core.setFailed('ProjectV2Item not found via GraphQL');
+              return;
+            }
+
+            const content = node.content || {};
+            const title = content.title || '(no title)';
+            const url   = content.url   || node.project?.url || context.payload.repository?.html_url;
+
+            // Status フィールドを探す（SingleSelect の中で field.name === "Status"）
+            let status = null;
+            for (const v of node.fieldValues.nodes) {
+              if (v.__typename === 'ProjectV2ItemFieldSingleSelectValue'
+                  && v.field?.name === 'Status') {
+                status = v.name; // 例: "Inbox" / "Todo" / "Doing" / ...
+                break;
+              }
+            }
+
+            // Zapier に送る JSON
+            const body = {
+              source: 'projects_v2',
+              repository: context.payload.repository?.full_name,
+              project_title: node.project?.title,
+              title, url,
+              status,                                // 新しいステータス
+              action_types: context.payload.action,  // created / edited / moved など
+              triggered_at: new Date().toISOString()
+            };
+
+            const res = await fetch(process.env.ZAPIER_HOOK_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+            core.info(`Posted to Zapier: ${res.status}`);
