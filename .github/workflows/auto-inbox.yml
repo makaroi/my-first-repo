@@ -1,22 +1,53 @@
-name: Auto add Inbox label
+name: Auto add "1. inbox" label
 
 on:
   issues:
-    types: [opened]  # 新しい Issue が作成されたとき
+    types: [opened]   # 新しい Issue が作成されたときに実行
 
 permissions:
   issues: write
 
 jobs:
-  add-label:
+  add-inbox:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - name: Ensure "1. inbox" exists, keep single status label, and add it
+        uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              labels: ['Inbox']
-            });
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+
+            // ★あなたの運用に合わせてここだけ調整OK
+            const INBOX = '1. inbox';
+            const STATUS_LABELS = ['1. inbox', '2. todo', '3. doing', '4. done']; // 使うものだけ残してOK
+
+            // 1) ラベルが存在しなければ作成（色=黒、説明=日本語）
+            async function ensureLabel(name, color='000000', description='') {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (e) {
+                if (e.status === 404) {
+                  await github.rest.issues.createLabel({ owner, repo, name, color, description });
+                } else {
+                  throw e;
+                }
+              }
+            }
+            await ensureLabel(INBOX, '000000', 'とりあえずここにメモする');
+
+            // 2) 既存のステータス系ラベルが付いていれば外して、常に1つだけにする
+            const existing = (context.payload.issue.labels || []).map(l => l.name);
+            for (const name of existing) {
+              if (STATUS_LABELS.includes(name) && name !== INBOX) {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+              }
+            }
+
+            // 3) "1. inbox" を付与（未付与なら）
+            if (!existing.includes(INBOX)) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [INBOX] });
+            }
+
+            core.info(`Labeled issue #${issue_number} with "${INBOX}"`);
